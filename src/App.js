@@ -39,6 +39,8 @@ import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import io from 'socket.io-client';
 import Auth from './components/Auth';
+import MenuIcon from '@mui/icons-material/Menu';
+import CloseIcon from '@mui/icons-material/Close';
 
 const socket = io(process.env.REACT_APP_SOCKET_SERVER_URL, {
   reconnection: true,
@@ -125,7 +127,17 @@ const SidebarWrapper = styled(Box)(({ theme }) => ({
   borderRight: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
   display: 'flex',
   flexDirection: 'column',
-  height: '100vh'
+  height: '100vh',
+  [theme.breakpoints.down('sm')]: {
+    width: '100%',
+    position: 'fixed',
+    zIndex: 1200,
+    transform: 'translateX(-100%)',
+    transition: 'transform 0.3s ease-in-out',
+    '&.open': {
+      transform: 'translateX(0)'
+    }
+  }
 }));
 
 const ChatWrapper = styled(Box)(({ theme }) => ({
@@ -145,6 +157,9 @@ const ChatWrapper = styled(Box)(({ theme }) => ({
     backgroundImage: 'radial-gradient(circle at center, #1a237e 0%, transparent 70%)',
     opacity: 0.05,
     pointerEvents: 'none'
+  },
+  [theme.breakpoints.down('sm')]: {
+    width: '100%'
   }
 }));
 
@@ -166,6 +181,10 @@ const MessageContainer = styled(Box)(({ theme, sent }) => ({
   transition: 'transform 0.2s ease-in-out',
   '&:hover': {
     transform: 'translateY(-1px)'
+  },
+  [theme.breakpoints.down('sm')]: {
+    maxWidth: '85%',
+    padding: theme.spacing(1, 1.5)
   }
 }));
 
@@ -199,6 +218,8 @@ function App() {
   const [darkMode, setDarkMode] = useState(process.env.REACT_APP_DEFAULT_THEME === 'dark');
   const [socketConnected, setSocketConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isMobile = window.innerWidth <= 600;
 
   useEffect(() => {
     console.log('Setting up auth state observer');
@@ -450,6 +471,16 @@ function App() {
     }
   };
 
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
+  const closeSidebarOnMobile = () => {
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+  };
+
   if (!user) {
     return (
       <ThemeProvider theme={darkMode ? darkTheme : lightTheme}>
@@ -462,8 +493,20 @@ function App() {
   return (
     <ThemeProvider theme={darkMode ? darkTheme : lightTheme}>
       <CssBaseline />
-      <Box sx={{ display: 'flex', height: '100vh' }}>
-        <SidebarWrapper>
+      <Box sx={{ display: 'flex', height: '100vh', position: 'relative' }}>
+        <SidebarWrapper className={sidebarOpen ? 'open' : ''}>
+          {isMobile && (
+            <Box sx={{ 
+              position: 'absolute', 
+              right: 8, 
+              top: 8, 
+              zIndex: 1
+            }}>
+              <IconButton onClick={toggleSidebar} size="small">
+                <CloseIcon />
+              </IconButton>
+            </Box>
+          )}
           {/* User Profile */}
           <Box sx={{ p: 2, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
@@ -590,6 +633,11 @@ function App() {
             justifyContent: 'space-between'
           }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              {isMobile && (
+                <IconButton onClick={toggleSidebar} size="small">
+                  <MenuIcon />
+                </IconButton>
+              )}
               <Avatar sx={{ bgcolor: 'primary.main' }}>G</Avatar>
               <Box>
                 <Typography variant="subtitle1" fontWeight="500">
@@ -615,16 +663,20 @@ function App() {
               </Box>
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <Tooltip title="Voice Call">
-                <ActionButton>
-                  <CallIcon />
-                </ActionButton>
-              </Tooltip>
-              <Tooltip title="Video Call">
-                <ActionButton>
-                  <VideocamIcon />
-                </ActionButton>
-              </Tooltip>
+              {!isMobile && (
+                <>
+                  <Tooltip title="Voice Call">
+                    <ActionButton>
+                      <CallIcon />
+                    </ActionButton>
+                  </Tooltip>
+                  <Tooltip title="Video Call">
+                    <ActionButton>
+                      <VideocamIcon />
+                    </ActionButton>
+                  </Tooltip>
+                </>
+              )}
             </Box>
           </Box>
 
@@ -632,7 +684,7 @@ function App() {
           <Box sx={{ 
             flex: 1, 
             overflow: 'auto', 
-            p: 3,
+            p: { xs: 1, sm: 2, md: 3 },
             display: 'flex',
             flexDirection: 'column',
             gap: 1
@@ -686,18 +738,20 @@ function App() {
 
           {/* Message Input */}
           <Box sx={{ 
-            p: 2,
+            p: { xs: 1, sm: 2 },
             borderTop: '1px solid rgba(255,255,255,0.1)',
             backgroundColor: alpha(darkTheme.palette.background.paper, 0.8),
             backdropFilter: 'blur(10px)'
           }}>
             <form onSubmit={sendMessage}>
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                <Tooltip title="Attach File">
-                  <ActionButton size="small">
-                    <AttachFileIcon />
-                  </ActionButton>
-                </Tooltip>
+                {!isMobile && (
+                  <Tooltip title="Attach File">
+                    <ActionButton size="small">
+                      <AttachFileIcon />
+                    </ActionButton>
+                  </Tooltip>
+                )}
                 <StyledInput
                   fullWidth
                   placeholder="Type a message..."
@@ -708,16 +762,20 @@ function App() {
                   }}
                   size="small"
                 />
-                <Tooltip title="Emoji">
-                  <ActionButton size="small">
-                    <EmojiEmotionsIcon />
-                  </ActionButton>
-                </Tooltip>
-                <Tooltip title="Voice Message">
-                  <ActionButton size="small">
-                    <MicIcon />
-                  </ActionButton>
-                </Tooltip>
+                {!isMobile && (
+                  <>
+                    <Tooltip title="Emoji">
+                      <ActionButton size="small">
+                        <EmojiEmotionsIcon />
+                      </ActionButton>
+                    </Tooltip>
+                    <Tooltip title="Voice Message">
+                      <ActionButton size="small">
+                        <MicIcon />
+                      </ActionButton>
+                    </Tooltip>
+                  </>
+                )}
                 <Tooltip title="Send">
                   <span>
                     <ActionButton 
