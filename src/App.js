@@ -41,6 +41,8 @@ import io from 'socket.io-client';
 import Auth from './components/Auth';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
+import PersonIcon from '@mui/icons-material/Person';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 const socket = io(process.env.REACT_APP_SOCKET_SERVER_URL, {
   reconnection: true,
@@ -298,6 +300,9 @@ function App() {
   const isMobile = window.innerWidth <= 600;
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [windowFocused, setWindowFocused] = useState(true);
+  const [selectedChat, setSelectedChat] = useState(null);
+  const [privateMessages, setPrivateMessages] = useState({});
+  const [activeChats, setActiveChats] = useState([]);
 
   useEffect(() => {
     console.log('Setting up auth state observer');
@@ -640,6 +645,119 @@ function App() {
     }
   };
 
+  // Add this function to handle private message sending
+  const sendPrivateMessage = async (e) => {
+    e.preventDefault();
+    
+    if (!user || !input.trim() || !selectedChat) return;
+
+    try {
+      const messageData = {
+        text: input.trim(),
+        userId: user.uid,
+        sender: user.displayName || 'Anonymous',
+        timestamp: serverTimestamp(),
+        email: user.email,
+        createdAt: new Date().toISOString(),
+        receiverId: selectedChat.uid,
+        isPrivate: true
+      };
+
+      // Save to Firestore in a private messages collection
+      const docRef = await addDoc(collection(db, 'private_messages'), messageData);
+      console.log('Private message saved with ID:', docRef.id);
+
+      // Emit socket event for private message
+      socket.emit('private_message', {
+        ...messageData,
+        id: docRef.id,
+        timestamp: new Date().toISOString()
+      });
+
+      setInput('');
+    } catch (error) {
+      console.error('Error sending private message:', error);
+      alert('Failed to send private message. Please try again.');
+    }
+  };
+
+  // Add this function to handle chat selection
+  const handleChatSelect = (chatUser) => {
+    setSelectedChat(chatUser);
+    setSidebarOpen(false);
+    
+    // Load private messages for this chat
+    const chatId = [user.uid, chatUser.uid].sort().join('_');
+    if (!privateMessages[chatId]) {
+      loadPrivateMessages(chatId);
+    }
+    
+    // Add to active chats if not already present
+    if (!activeChats.find(chat => chat.uid === chatUser.uid)) {
+      setActiveChats(prev => [...prev, chatUser]);
+    }
+  };
+
+  // Add this function to load private messages
+  const loadPrivateMessages = async (chatId) => {
+    try {
+      const [user1, user2] = chatId.split('_');
+      const messagesRef = collection(db, 'private_messages');
+      const q = query(
+        messagesRef,
+        orderBy('timestamp', 'desc'),
+        limit(50)
+      );
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const messages = snapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            timestamp: doc.data().timestamp?.toDate?.() || new Date(doc.data().createdAt || Date.now())
+          }))
+          .filter(msg => 
+            (msg.userId === user1 && msg.receiverId === user2) ||
+            (msg.userId === user2 && msg.receiverId === user1)
+          )
+          .sort((a, b) => a.timestamp - b.timestamp);
+
+        setPrivateMessages(prev => ({
+          ...prev,
+          [chatId]: messages
+        }));
+      });
+
+      return unsubscribe;
+    } catch (error) {
+      console.error('Error loading private messages:', error);
+    }
+  };
+
+  // Add socket event listener for private messages
+  useEffect(() => {
+    socket.on('private_message', (data) => {
+      if (data.userId === user?.uid || data.receiverId === user?.uid) {
+        const chatId = [data.userId, data.receiverId].sort().join('_');
+        setPrivateMessages(prev => ({
+          ...prev,
+          [chatId]: [...(prev[chatId] || []), data]
+        }));
+
+        // Show notification for incoming private messages
+        if (data.userId !== user?.uid && !windowFocused) {
+          showNotification({
+            ...data,
+            text: `${data.sender}: ${data.text}`,
+            isPrivate: true
+          });
+        }
+      }
+    });
+
+    return () => socket.off('private_message');
+  }, [user, windowFocused, showNotification]);
+
   if (!user) {
     return (
       <ThemeProvider theme={darkMode ? darkTheme : lightTheme}>
@@ -722,20 +840,29 @@ function App() {
             />
           </Box>
 
-          {/* Online Users */}
+          {/* Online Users - Updated for private chat */}
           <List sx={{ flex: 1, overflow: 'auto', py: 0 }}>
-            {onlineUsers.map((user, index) => (
+            {onlineUsers.map((chatUser, index) => (
               <ListItemButton
                 key={index}
+                selected={selectedChat?.uid === chatUser.uid}
+                onClick={() => handleChatSelect(chatUser)}
                 sx={{
                   py: 1.5,
                   px: 2,
                   borderRadius: 2,
                   mx: 1,
+                  mb: 0.5,
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                   '&:hover': {
                     backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.1),
                     transform: 'translateX(4px)'
+                  },
+                  '&.Mui-selected': {
+                    backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.15),
+                    '&:hover': {
+                      backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.25),
+                    }
                   }
                 }}
               >
@@ -755,12 +882,12 @@ function App() {
                         borderColor: 'primary.main'
                       }}
                     >
-                      {user.name[0].toUpperCase()}
+                      {chatUser.name[0].toUpperCase()}
                     </Avatar>
                   </Badge>
                 </ListItemAvatar>
                 <ListItemText
-                  primary={user.name}
+                  primary={chatUser.name}
                   secondary="Online"
                   primaryTypographyProps={{
                     fontWeight: 500,
@@ -804,7 +931,7 @@ function App() {
         </SidebarWrapper>
 
         <ChatWrapper>
-          {/* Chat Header */}
+          {/* Chat Header - Updated for private chat */}
           <Box sx={{ 
             p: { xs: 1.5, sm: 2 }, 
             borderBottom: '1px solid',
@@ -822,32 +949,41 @@ function App() {
                   <MenuIcon />
                 </IconButton>
               )}
-              <Avatar sx={{ bgcolor: 'primary.main' }}>G</Avatar>
-              <Box>
-                <Typography variant="subtitle1" fontWeight="500">
-                  {process.env.REACT_APP_APP_NAME}
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    {onlineUsers.length} online
-                  </Typography>
-                  {reconnecting ? (
-                    <CircularProgress size={12} />
-                  ) : (
-                    <Box
-                      sx={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        bgcolor: socketConnected ? 'success.main' : 'error.main'
-                      }}
-                    />
+              {selectedChat ? (
+                <>
+                  {!isMobile && (
+                    <IconButton onClick={() => setSelectedChat(null)} size="small">
+                      <ArrowBackIcon />
+                    </IconButton>
                   )}
-                </Box>
-              </Box>
+                  <Avatar sx={{ bgcolor: 'primary.main' }}>
+                    {selectedChat.name[0].toUpperCase()}
+                  </Avatar>
+                  <Box>
+                    <Typography variant="subtitle1" fontWeight="500">
+                      {selectedChat.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Online
+                    </Typography>
+                  </Box>
+                </>
+              ) : (
+                <>
+                  <Avatar sx={{ bgcolor: 'primary.main' }}>G</Avatar>
+                  <Box>
+                    <Typography variant="subtitle1" fontWeight="500">
+                      {process.env.REACT_APP_APP_NAME}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {onlineUsers.length} online
+                    </Typography>
+                  </Box>
+                </>
+              )}
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
-              {!isMobile && (
+              {selectedChat && !isMobile && (
                 <>
                   <Tooltip title="Voice Call">
                     <ActionButton>
@@ -864,7 +1000,7 @@ function App() {
             </Box>
           </Box>
 
-          {/* Messages */}
+          {/* Messages - Updated for private chat */}
           <Box sx={{ 
             flex: 1, 
             overflow: 'auto', 
@@ -884,43 +1020,87 @@ function App() {
               }
             }
           }}>
-            {messages.map((msg, index) => {
-              const isSent = msg.userId === user?.uid;
-              return (
-                <Box
-                  key={index}
-                  sx={{
-                    display: 'flex',
-                    justifyContent: isSent ? 'flex-end' : 'flex-start',
-                    alignItems: 'flex-end',
-                    gap: 1
-                  }}
-                >
-                  {!isSent && (
-                    <Avatar sx={{ width: 32, height: 32 }}>
-                      {msg.sender?.[0]?.toUpperCase()}
-                    </Avatar>
-                  )}
-                  <MessageContainer sent={isSent}>
-                    <Typography variant="body1" color="text.primary">
-                      {msg.text}
-                    </Typography>
-                    <Typography 
-                      variant="caption" 
-                      color="text.secondary"
-                      sx={{ 
-                        display: 'block',
-                        mt: 0.5,
-                        textAlign: 'right',
-                        opacity: 0.7
-                      }}
-                    >
-                      {new Date(msg.timestamp).toLocaleTimeString()}
-                    </Typography>
-                  </MessageContainer>
-                </Box>
-              );
-            })}
+            {selectedChat ? (
+              // Private chat messages
+              privateMessages[
+                [user.uid, selectedChat.uid].sort().join('_')
+              ]?.map((msg, index) => {
+                const isSent = msg.userId === user?.uid;
+                return (
+                  <Box
+                    key={index}
+                    sx={{
+                      display: 'flex',
+                      justifyContent: isSent ? 'flex-end' : 'flex-start',
+                      alignItems: 'flex-end',
+                      gap: 1
+                    }}
+                  >
+                    {!isSent && (
+                      <Avatar sx={{ width: 32, height: 32 }}>
+                        {msg.sender?.[0]?.toUpperCase()}
+                      </Avatar>
+                    )}
+                    <MessageContainer sent={isSent}>
+                      <Typography variant="body1" color="text.primary">
+                        {msg.text}
+                      </Typography>
+                      <Typography 
+                        variant="caption" 
+                        color="text.secondary"
+                        sx={{ 
+                          display: 'block',
+                          mt: 0.5,
+                          textAlign: 'right',
+                          opacity: 0.7
+                        }}
+                      >
+                        {new Date(msg.timestamp).toLocaleTimeString()}
+                      </Typography>
+                    </MessageContainer>
+                  </Box>
+                );
+              })
+            ) : (
+              // Group chat messages
+              messages.map((msg, index) => {
+                const isSent = msg.userId === user?.uid;
+                return (
+                  <Box
+                    key={index}
+                    sx={{
+                      display: 'flex',
+                      justifyContent: isSent ? 'flex-end' : 'flex-start',
+                      alignItems: 'flex-end',
+                      gap: 1
+                    }}
+                  >
+                    {!isSent && (
+                      <Avatar sx={{ width: 32, height: 32 }}>
+                        {msg.sender?.[0]?.toUpperCase()}
+                      </Avatar>
+                    )}
+                    <MessageContainer sent={isSent}>
+                      <Typography variant="body1" color="text.primary">
+                        {msg.text}
+                      </Typography>
+                      <Typography 
+                        variant="caption" 
+                        color="text.secondary"
+                        sx={{ 
+                          display: 'block',
+                          mt: 0.5,
+                          textAlign: 'right',
+                          opacity: 0.7
+                        }}
+                      >
+                        {new Date(msg.timestamp).toLocaleTimeString()}
+                      </Typography>
+                    </MessageContainer>
+                  </Box>
+                );
+              })
+            )}
             {isTyping && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2 }}>
                 <CircularProgress size={16} />
@@ -931,7 +1111,7 @@ function App() {
             )}
           </Box>
 
-          {/* Message Input */}
+          {/* Message Input - Updated for private chat */}
           <Box sx={{ 
             p: { xs: 1.5, sm: 2 },
             borderTop: '1px solid',
@@ -940,7 +1120,7 @@ function App() {
             backdropFilter: 'blur(10px)',
             boxShadow: '0 -4px 16px rgba(0,0,0,0.1)'
           }}>
-            <form onSubmit={sendMessage}>
+            <form onSubmit={selectedChat ? sendPrivateMessage : sendMessage}>
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                 {!isMobile && (
                   <Tooltip title="Attach File">
@@ -951,11 +1131,14 @@ function App() {
                 )}
                 <StyledInput
                   fullWidth
-                  placeholder="Type a message..."
+                  placeholder={selectedChat ? `Message ${selectedChat.name}...` : "Type a message..."}
                   value={input}
                   onChange={(e) => {
                     setInput(e.target.value);
-                    socket.emit('typing', { isTyping: e.target.value.length > 0 });
+                    socket.emit('typing', { 
+                      isTyping: e.target.value.length > 0,
+                      receiverId: selectedChat?.uid
+                    });
                   }}
                   size="small"
                 />

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="256" cy="256" r="256" fill="#2196f3"/>
+  
+  <!-- Chat Bubble -->
+  <path d="M384 144H128C114.745 144 104 154.745 104 168V344C104 357.255 114.745 368 128 368H240L288 416L336 368H384C397.255 368 408 357.255 408 344V168C408 154.745 397.255 144 384 144Z" 
+        fill="white" 
+        filter="drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.2))"/>
+  
+  <!-- Dots -->
+  <circle cx="192" cy="256" r="16" fill="#2196f3"/>
+  <circle cx="256" cy="256" r="16" fill="#2196f3"/>
+  <circle cx="320" cy="256" r="16" fill="#2196f3"/>
+</svg> 
