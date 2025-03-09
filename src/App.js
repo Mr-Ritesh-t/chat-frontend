@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -65,8 +65,8 @@ const darkTheme = createTheme({
       dark: '#1976d2'
     },
     background: {
-      default: '#121212',
-      paper: '#1E1E1E'
+      default: '#0A1929',
+      paper: '#132F4C'
     },
     text: {
       primary: '#ffffff',
@@ -74,16 +74,45 @@ const darkTheme = createTheme({
     }
   },
   shape: {
-    borderRadius: 12
+    borderRadius: 16
   },
   components: {
     MuiPaper: {
       styleOverrides: {
         root: {
           backgroundImage: 'none',
-          backgroundColor: '#1E1E1E'
+          backgroundColor: '#132F4C'
         }
       }
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          borderRadius: 8
+        }
+      }
+    }
+  },
+  typography: {
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    h1: {
+      fontSize: '2rem',
+      fontWeight: 600
+    },
+    h2: {
+      fontSize: '1.75rem',
+      fontWeight: 600
+    },
+    subtitle1: {
+      fontSize: '1rem',
+      fontWeight: 500
+    },
+    body1: {
+      fontSize: '0.9375rem'
+    },
+    caption: {
+      fontSize: '0.75rem'
     }
   }
 });
@@ -97,43 +126,73 @@ const lightTheme = createTheme({
       dark: '#1976d2'
     },
     background: {
-      default: '#f5f5f5',
+      default: '#F3F6F9',
       paper: '#ffffff'
     },
     text: {
-      primary: '#000000',
-      secondary: 'rgba(0, 0, 0, 0.7)'
+      primary: '#0A1929',
+      secondary: 'rgba(10, 25, 41, 0.7)'
     }
   },
   shape: {
-    borderRadius: 12
+    borderRadius: 16
   },
   components: {
     MuiPaper: {
       styleOverrides: {
         root: {
           backgroundImage: 'none',
-          backgroundColor: '#ffffff'
+          backgroundColor: '#ffffff',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.1)'
         }
       }
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          borderRadius: 8
+        }
+      }
+    }
+  },
+  typography: {
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    h1: {
+      fontSize: '2rem',
+      fontWeight: 600
+    },
+    h2: {
+      fontSize: '1.75rem',
+      fontWeight: 600
+    },
+    subtitle1: {
+      fontSize: '1rem',
+      fontWeight: 500
+    },
+    body1: {
+      fontSize: '0.9375rem'
+    },
+    caption: {
+      fontSize: '0.75rem'
     }
   }
 });
 
 const SidebarWrapper = styled(Box)(({ theme }) => ({
   width: 320,
-  backgroundColor: alpha(theme.palette.background.paper, 0.8),
-  backdropFilter: 'blur(10px)',
+  backgroundColor: alpha(theme.palette.background.paper, 0.98),
+  backdropFilter: 'blur(20px)',
   borderRight: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
   display: 'flex',
   flexDirection: 'column',
   height: '100vh',
+  transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
   [theme.breakpoints.down('sm')]: {
     width: '100%',
     position: 'fixed',
     zIndex: 1200,
     transform: 'translateX(-100%)',
-    transition: 'transform 0.3s ease-in-out',
     '&.open': {
       transform: 'translateX(0)'
     }
@@ -154,8 +213,10 @@ const ChatWrapper = styled(Box)(({ theme }) => ({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundImage: 'radial-gradient(circle at center, #1a237e 0%, transparent 70%)',
-    opacity: 0.05,
+    backgroundImage: theme.palette.mode === 'dark' 
+      ? 'radial-gradient(circle at 50% -50%, #1976d2 0%, transparent 75%)'
+      : 'radial-gradient(circle at 50% -50%, #64b5f6 0%, transparent 75%)',
+    opacity: 0.15,
     pointerEvents: 'none'
   },
   [theme.breakpoints.down('sm')]: {
@@ -172,15 +233,18 @@ const MessageContainer = styled(Box)(({ theme, sent }) => ({
   position: 'relative',
   wordBreak: 'break-word',
   backgroundColor: sent 
-    ? `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`
-    : alpha(theme.palette.background.paper, 0.6),
+    ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.9 : 0.9)
+    : alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.5 : 0.95),
   boxShadow: sent
-    ? '0 2px 8px rgba(33, 150, 243, 0.3)'
-    : '0 2px 8px rgba(0, 0, 0, 0.1)',
+    ? '0 2px 12px rgba(33, 150, 243, 0.3)'
+    : '0 2px 12px rgba(0, 0, 0, 0.1)',
   backdropFilter: 'blur(10px)',
-  transition: 'transform 0.2s ease-in-out',
+  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
   '&:hover': {
-    transform: 'translateY(-1px)'
+    transform: 'translateY(-2px)',
+    boxShadow: sent
+      ? '0 4px 16px rgba(33, 150, 243, 0.4)'
+      : '0 4px 16px rgba(0, 0, 0, 0.15)'
   },
   [theme.breakpoints.down('sm')]: {
     maxWidth: '85%',
@@ -190,11 +254,17 @@ const MessageContainer = styled(Box)(({ theme, sent }) => ({
 
 const StyledInput = styled(TextField)(({ theme }) => ({
   '& .MuiOutlinedInput-root': {
-    backgroundColor: alpha(theme.palette.background.paper, 0.8),
+    backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.5 : 0.95),
     backdropFilter: 'blur(10px)',
     borderRadius: 30,
+    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
     '&:hover': {
-      backgroundColor: alpha(theme.palette.background.paper, 0.9)
+      backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.6 : 1),
+      boxShadow: '0 2px 12px rgba(0, 0, 0, 0.1)'
+    },
+    '&.Mui-focused': {
+      backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.7 : 1),
+      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)'
     },
     '& fieldset': {
       borderColor: 'transparent'
@@ -204,8 +274,14 @@ const StyledInput = styled(TextField)(({ theme }) => ({
 
 const ActionButton = styled(IconButton)(({ theme }) => ({
   color: theme.palette.primary.main,
+  backgroundColor: alpha(theme.palette.primary.main, 0.1),
+  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
   '&:hover': {
-    backgroundColor: alpha(theme.palette.primary.main, 0.1)
+    backgroundColor: alpha(theme.palette.primary.main, 0.2),
+    transform: 'scale(1.05)'
+  },
+  '&:active': {
+    transform: 'scale(0.95)'
   }
 }));
 
@@ -220,6 +296,8 @@ function App() {
   const [reconnecting, setReconnecting] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isMobile = window.innerWidth <= 600;
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [windowFocused, setWindowFocused] = useState(true);
 
   useEffect(() => {
     console.log('Setting up auth state observer');
@@ -327,13 +405,97 @@ function App() {
     };
   }, [user]);
 
+  // Handle notification permission
+  const requestNotificationPermission = useCallback(async () => {
+    try {
+      if (!("Notification" in window)) {
+        console.log("This browser does not support notifications");
+        return;
+      }
+
+      const permission = await Notification.requestPermission();
+      setNotificationsEnabled(permission === "granted");
+      console.log("Notification permission:", permission);
+    } catch (error) {
+      console.error("Error requesting notification permission:", error);
+    }
+  }, []);
+
+  // Show notification
+  const showNotification = useCallback((message) => {
+    if (!notificationsEnabled || windowFocused) return;
+
+    try {
+      const notification = new Notification(message.sender || "New Message", {
+        body: message.text,
+        icon: "/favicon.ico", // Add your app icon path here
+        badge: "/favicon.ico", // Add your app icon path here
+        tag: "chat-message",
+        renotify: true,
+        silent: false,
+        timestamp: message.timestamp,
+        data: {
+          messageId: message.id,
+          userId: message.userId
+        }
+      });
+
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+
+      // Auto close after 5 seconds
+      setTimeout(() => notification.close(), 5000);
+    } catch (error) {
+      console.error("Error showing notification:", error);
+    }
+  }, [notificationsEnabled, windowFocused]);
+
+  // Handle window focus
+  useEffect(() => {
+    const handleFocus = () => setWindowFocused(true);
+    const handleBlur = () => setWindowFocused(false);
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
+
+  // Check notification permission on mount
+  useEffect(() => {
+    if ("Notification" in window) {
+      setNotificationsEnabled(Notification.permission === "granted");
+    }
+  }, []);
+
+  // Socket event handlers
+  const handleReceiveMessage = useCallback((data) => {
+    console.log('Received message from socket:', data);
+    // Show notification for new messages
+    if (data.userId !== user?.uid) {
+      showNotification(data);
+    }
+    // Don't add duplicate messages that we already have from Firestore
+    setMessages((prev) => {
+      if (!prev.some(msg => msg.id === data.id)) {
+        return [...prev, data];
+      }
+      return prev;
+    });
+  }, [user, showNotification]);
+
+  // Socket connection effect
   useEffect(() => {
     socket.on('connect', () => {
       console.log('Connected to socket server');
       setSocketConnected(true);
       setReconnecting(false);
       
-      // Re-emit user join event if user is authenticated
       if (auth.currentUser) {
         socket.emit('user_join', {
           name: auth.currentUser.displayName || 'Anonymous',
@@ -348,7 +510,6 @@ function App() {
       setSocketConnected(false);
       setReconnecting(true);
       
-      // If websocket fails, try polling
       if (socket.io.opts.transports[0] === 'websocket') {
         console.log('Falling back to polling transport');
         socket.io.opts.transports = ['polling', 'websocket'];
@@ -360,13 +521,11 @@ function App() {
       setSocketConnected(false);
       
       if (reason === 'io server disconnect') {
-        // Server initiated disconnect, try to reconnect
         socket.connect();
       }
       
       if (reason === 'transport close' || reason === 'ping timeout') {
         setReconnecting(true);
-        // Try to reconnect with exponential backoff
         setTimeout(() => {
           if (!socket.connected && user) {
             console.log('Attempting to reconnect...');
@@ -376,16 +535,7 @@ function App() {
       }
     });
 
-    socket.on('receive_message', (data) => {
-      console.log('Received message from socket:', data);
-      // Don't add duplicate messages that we already have from Firestore
-      setMessages((prev) => {
-        if (!prev.some(msg => msg.id === data.id)) {
-          return [...prev, data];
-        }
-        return prev;
-      });
-    });
+    socket.on('receive_message', handleReceiveMessage);
 
     socket.on('users_update', (users) => {
       console.log('Users update:', users);
@@ -404,7 +554,7 @@ function App() {
       socket.off('users_update');
       socket.off('typing');
     };
-  }, [user]);
+  }, [user, handleReceiveMessage]);
 
   const handleSignOut = async () => {
     try {
@@ -478,6 +628,15 @@ function App() {
   const closeSidebarOnMobile = () => {
     if (isMobile) {
       setSidebarOpen(false);
+    }
+  };
+
+  // Handle notification toggle
+  const handleNotificationToggle = async () => {
+    if (notificationsEnabled) {
+      setNotificationsEnabled(false);
+    } else {
+      await requestNotificationPermission();
     }
   };
 
@@ -571,8 +730,12 @@ function App() {
                 sx={{
                   py: 1.5,
                   px: 2,
+                  borderRadius: 2,
+                  mx: 1,
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                   '&:hover': {
-                    backgroundColor: 'rgba(255,255,255,0.05)'
+                    backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                    transform: 'translateX(4px)'
                   }
                 }}
               >
@@ -583,7 +746,15 @@ function App() {
                     variant="dot"
                     color="success"
                   >
-                    <Avatar sx={{ bgcolor: 'primary.main' }}>
+                    <Avatar
+                      sx={{ 
+                        width: 40, 
+                        height: 40,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                        border: '2px solid',
+                        borderColor: 'primary.main'
+                      }}
+                    >
                       {user.name[0].toUpperCase()}
                     </Avatar>
                   </Badge>
@@ -612,8 +783,19 @@ function App() {
                   <SettingsIcon />
                 </ActionButton>
               </Tooltip>
-              <Tooltip title="Notifications">
-                <ActionButton>
+              <Tooltip title={notificationsEnabled ? "Disable Notifications" : "Enable Notifications"}>
+                <ActionButton 
+                  onClick={handleNotificationToggle}
+                  sx={{
+                    color: notificationsEnabled ? 'success.main' : 'inherit',
+                    '&:hover': {
+                      backgroundColor: (theme) => alpha(
+                        notificationsEnabled ? theme.palette.success.main : theme.palette.primary.main, 
+                        0.1
+                      )
+                    }
+                  }}
+                >
                   <NotificationsIcon />
                 </ActionButton>
               </Tooltip>
@@ -624,10 +806,12 @@ function App() {
         <ChatWrapper>
           {/* Chat Header */}
           <Box sx={{ 
-            p: 2, 
-            borderBottom: '1px solid rgba(255,255,255,0.1)',
-            backgroundColor: alpha(darkTheme.palette.background.paper, 0.8),
-            backdropFilter: 'blur(10px)',
+            p: { xs: 1.5, sm: 2 }, 
+            borderBottom: '1px solid',
+            borderColor: (theme) => alpha(theme.palette.divider, 0.1),
+            backgroundColor: (theme) => alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.8 : 0.95),
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between'
@@ -684,10 +868,21 @@ function App() {
           <Box sx={{ 
             flex: 1, 
             overflow: 'auto', 
-            p: { xs: 1, sm: 2, md: 3 },
+            p: { xs: 1.5, sm: 2, md: 3 },
             display: 'flex',
             flexDirection: 'column',
-            gap: 1
+            gap: 1.5,
+            '&::-webkit-scrollbar': {
+              width: '8px',
+              backgroundColor: 'transparent'
+            },
+            '&::-webkit-scrollbar-thumb': {
+              backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.2),
+              borderRadius: '4px',
+              '&:hover': {
+                backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.3)
+              }
+            }
           }}>
             {messages.map((msg, index) => {
               const isSent = msg.userId === user?.uid;
@@ -738,10 +933,12 @@ function App() {
 
           {/* Message Input */}
           <Box sx={{ 
-            p: { xs: 1, sm: 2 },
-            borderTop: '1px solid rgba(255,255,255,0.1)',
-            backgroundColor: alpha(darkTheme.palette.background.paper, 0.8),
-            backdropFilter: 'blur(10px)'
+            p: { xs: 1.5, sm: 2 },
+            borderTop: '1px solid',
+            borderColor: (theme) => alpha(theme.palette.divider, 0.1),
+            backgroundColor: (theme) => alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.8 : 0.95),
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 -4px 16px rgba(0,0,0,0.1)'
           }}>
             <form onSubmit={sendMessage}>
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -784,8 +981,13 @@ function App() {
                       disabled={!input.trim()}
                       sx={{
                         bgcolor: 'primary.main',
+                        color: 'white',
                         '&:hover': {
-                          bgcolor: 'primary.dark'
+                          bgcolor: 'primary.dark',
+                          transform: 'scale(1.05)'
+                        },
+                        '&:active': {
+                          transform: 'scale(0.95)'
                         },
                         '&.Mui-disabled': {
                           bgcolor: 'action.disabledBackground'
