@@ -74,4 +74,4 @@ export const refreshAuth = async () => {
     console.error("Error refreshing auth:", error);
     return false;
   }
-}; 
+};
